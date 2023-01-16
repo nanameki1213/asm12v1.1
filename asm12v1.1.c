@@ -74,6 +74,11 @@ void error_at(char *loc, char *fmt, ...) {
   exit(1);
 }
 
+char *cut_str(char *str, int len) {
+  char *p = calloc(len, sizeof(char));
+  memcpy(p, str, len);
+  return p;
+}
 
 bool is_alnum(char c){
   return ('a'<=c && c<='z') ||
@@ -126,10 +131,10 @@ bool at_eof() {
 }
 
 Label *find_label(char *name, int len) {
-  Label *lab = label;
-  for(; lab; lab = lab->next) {
-    fprintf(stderr, "lab->len: %d\n", lab->len);
-    if(lab->len == len && memcmp(lab->name, name, lab->len)) {
+  for(Label *lab = label; lab; lab = lab->next) {
+    // fprintf(stderr, "in find_label, lab->len: %d\n", lab->len);
+    if(lab->len == len && memcmp(lab->name, name, lab->len) == 0) {
+      // PRINT("return lab")
       return lab;
     }
   }
@@ -284,9 +289,9 @@ void print_bit(int val, int num) {
 
 void gen(Token *tok) {
   char *istr = calloc(16, sizeof(char));
-  int i;
-  for(i = 0; tok; tok = tok->next, i++) {
+  while(tok) {
     if(tok->kind == TK_ISTR) {
+      // fprintf(stderr, "in gen, tok->str: %s\n", cut_str(tok->str, tok->len));
       memcpy(istr, tok->str, tok->len);
       if(consume("load", TK_ISTR, &tok))
         printf("0000");
@@ -304,23 +309,26 @@ void gen(Token *tok) {
         printf("0110");
       else if(consume("lda", TK_ISTR, &tok))
         printf("0111");
-      else
-        ;
 
       // アドレッシングモードの指定
       if(consume("@", TK_RESERVED, &tok)) { // 直接アドレス
         printf("10");
       }
       else if(consume("[", TK_RESERVED, &tok)) { // 間接アドレス
-        printf("01");
+        printf("010000000000\n");
+        consume("amr", TK_IDENT, &tok);
         consume("]", TK_RESERVED, &tok);
+        continue;
       } else if(tok->kind == TK_HEX) { // 即値
         printf("00");
-      } else if(cmp_ident("acr", tok)) { // ACR
-        printf("11");
-      } else if(cmp_ident("pc", tok)) { // PC
+      } else if(consume("acr", TK_IDENT, &tok)) { // ACR
+        printf("110000000000\n");
+        continue;
+      } else if(consume("pc", TK_IDENT, &tok)) { // PC
         printf("111000000000\n");
         continue;
+      } else if(tok->kind == TK_IDENT) { // ラベルによる直接アドレス
+        printf("10");
       }
 
       if(consume(",", TK_RESERVED, &tok))
@@ -330,13 +338,18 @@ void gen(Token *tok) {
       if(tok->kind == TK_HEX)
         print_bit(tok->val, 10);
       else if(tok->kind == TK_IDENT) {
+        // fprintf(stderr, "p: %s\n", cut_str(tok->str, tok->len));
         Label *lab = find_label(tok->str, tok->len);
-        print_bit(lab->addr, 10);
+        if(lab != NULL)
+          print_bit(lab->addr, 10);
+        else
+          error("ラベルが見つかりません\n");
       } else
         printf("0000000000");
       
       putchar('\n');
     }
+    tok = tok->next;
   }
 }
 
@@ -386,14 +399,13 @@ int main(int argc, char **argv) {
   // ラベルの定義
   label = labeling();
 
-  Label *lab = label;
-  for(; lab; lab = lab->next) {
-    fprintf(stderr, "lab->name: %s\n", lab->name);
-    fprintf(stderr, "lab->len: %d\n", lab->len);
-    fprintf(stderr, "lab->addr: 0x");
-    print_bit(lab->addr, 10);
-    putchar('\n');
-  }
+  // for(Label *lab = label; lab; lab = lab->next) {
+  //   fprintf(stderr, "lab->name: %s\n", lab->name);
+  //   fprintf(stderr, "lab->len: %d\n", lab->len);
+  //   fprintf(stderr, "lab->addr: 0x");
+  //   print_bit(lab->addr, 10);
+  //   putchar('\n');
+  // }
 
   // Token *tok = token;
   // for(; tok; tok = tok->next) {
@@ -401,6 +413,8 @@ int main(int argc, char **argv) {
   //   printf("tok->val: %d\n", tok->val);
   //   printf("tok->len: %d\n", tok->len);
   // }
+
+  printf("コード生成スタート\n\n");
 
   gen(token);
 
