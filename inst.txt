@@ -1,0 +1,31 @@
+#疑似命令を展開したコード集
+
+push:
+  stre @0x1
+  load @0x0
+  sub 0x1
+  lda acr
+  load @0x1
+  stre [amr]
+
+pop:
+#スタックからpop
+  load @0x0
+  lda acr
+  load [amr]
+  stre @0x1
+#スタックポインタの値を変更
+  load @0x0
+  add 0x1
+  stre @0x0
+  load @0x1
+
+call:
+#プログラムカウンタを退避
+  load pc
+  stre @0x5
+  jump hoge
+
+ret:
+#プログラムカウンタを復活
+  jump @0x5
