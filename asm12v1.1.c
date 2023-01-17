@@ -259,6 +259,14 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    if(startswith(p, "call")) {
+      Token *call = tokenize(CALL);
+      cur->next = call;
+      cur = getcurrent(call);
+      p += 4;
+      continue;
+    }
+
     if (startswith(p, "0x")) {
       cur = new_token(TK_HEX, cur, p, 0);
       char *q = p;
@@ -405,6 +413,11 @@ int main(int argc, char **argv) {
   // ラベルの定義
   label = labeling();
 
+  printf("ラベル情報:\n");
+  for(Label *lab = label; lab; lab = lab->next) {
+    printf("%s: 0x%03x\n", cut_str(lab->name, lab->len), lab->addr);
+  }
+
   // for(Label *lab = label; lab; lab = lab->next) {
   //   fprintf(stderr, "lab->name: %s\n", lab->name);
   //   fprintf(stderr, "lab->len: %d\n", lab->len);
@@ -413,12 +426,12 @@ int main(int argc, char **argv) {
   //   putchar('\n');
   // }
 
-  Token *tok = token;
-  for(; tok; tok = tok->next) {
-    printf("tok->kind: %d\n", tok->kind);
-    printf("tok->val: %d\n", tok->val);
-    printf("tok->len: %d\n", tok->len);
-  }
+  // Token *tok = token;
+  // for(; tok; tok = tok->next) {
+  //   printf("tok->kind: %d\n", tok->kind);
+  //   printf("tok->val: %d\n", tok->val);
+  //   printf("tok->len: %d\n", tok->len);
+  // }
 
   printf("コード生成スタート\n\n");
 
