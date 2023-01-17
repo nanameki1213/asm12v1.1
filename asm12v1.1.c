@@ -10,7 +10,7 @@
 #define PRINT(x) fprintf(stderr, "%s\n", (x));
 #define PUSH "stre @0x1\n load @0x0\n sub 0x1\n lda acr \nload @0x1\n stre [amr]\n"
 #define POP "load @0x0\n lda acr\n load [amr]\n stre @0x1\n load @0x0\n add 0x1\n stre @0x0\n load @0x1\n"
-#define CALL "load pc\n stre @0x5\n load @0x1\n jump\n"
+#define CALL "load pc\n stre @0x5\n jump\n"
 
 // トークンの種類
 typedef enum {
@@ -264,6 +264,15 @@ Token *tokenize(char *p) {
       cur->next = call;
       cur = getcurrent(call);
       p += 4;
+      continue;
+    }
+
+    if(startswith(p, "ret")) {
+      cur = new_token(TK_ISTR, cur, "jump", 4);
+      cur = new_token(TK_RESERVED, cur, "@", 1);
+      cur = new_token(TK_HEX, cur, "0x5", 3);
+      cur->val = 5;
+      p += 3;
       continue;
     }
 
