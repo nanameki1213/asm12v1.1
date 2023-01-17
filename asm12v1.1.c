@@ -9,7 +9,8 @@
 
 #define PRINT(x) fprintf(stderr, "%s\n", (x));
 #define PUSH "stre @0x1\n load @0x0\n sub 0x1\n lda acr \nload @0x1\n stre [amr]\n"
-#define POP "load @0x0\n lda acr\n load [amr]\n stre @0x1\n load @0x0\n add 0x1\n stre @0x0\n load @0x1"
+#define POP "load @0x0\n lda acr\n load [amr]\n stre @0x1\n load @0x0\n add 0x1\n stre @0x0\n load @0x1\n"
+#define CALL "load pc\n stre @0x5\n load @0x1\n jump\n"
 
 // トークンの種類
 typedef enum {
@@ -193,8 +194,10 @@ bool startswith(char *p, char *q) {
   return memcmp(p, q, strlen(q)) == 0;
 }
 
+// curのリンクリストの先頭アドレスを返す
 Token *getcurrent(Token *cur) {
-  for(; cur->next; cur = cur->next) ;
+  while(cur->next)
+    cur = cur->next;
   return cur;
 }
 
@@ -274,8 +277,6 @@ Token *tokenize(char *p) {
 
     error("トークナイズできません");
   }
-
-  new_token(TK_EOF, cur, p, 0);
   return head.next;
 }
 
@@ -396,6 +397,11 @@ int main(int argc, char **argv) {
   // トークナイズしてパースする
   token = tokenize(user_input);
 
+  // トークンの末尾にEOFを追加
+  Token *eof = getcurrent(token);
+  eof->next = calloc(1, sizeof(Token));
+  eof->next->kind = TK_EOF;
+
   // ラベルの定義
   label = labeling();
 
@@ -407,12 +413,12 @@ int main(int argc, char **argv) {
   //   putchar('\n');
   // }
 
-  // Token *tok = token;
-  // for(; tok; tok = tok->next) {
-  //   printf("tok->kind: %d\n", tok->kind);
-  //   printf("tok->val: %d\n", tok->val);
-  //   printf("tok->len: %d\n", tok->len);
-  // }
+  Token *tok = token;
+  for(; tok; tok = tok->next) {
+    printf("tok->kind: %d\n", tok->kind);
+    printf("tok->val: %d\n", tok->val);
+    printf("tok->len: %d\n", tok->len);
+  }
 
   printf("コード生成スタート\n\n");
 
