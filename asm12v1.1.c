@@ -19,14 +19,6 @@ bool consume(char *op, TokenKind kind, Token **tok) {
   return true;
 }
 
-bool cmp_ident(char *id, Token *tok) {
-  if(tok->kind != TK_IDENT ||
-     strlen(id) != tok->len ||
-     memcmp(tok->str, id, tok->len))
-    return false;
-  return true;
-}
-
 // 次のトークンが期待している記号のときには、トークンを1つ読み進める。
 // それ以外の場合にはエラーを報告する。
 void expect(char *op) {
@@ -97,6 +89,10 @@ Label *labeling() {
 
     tok = tok->next;
   }
+
+  cur = new_label(cur, "push", 4, PUSH_ADDR);
+  cur = new_label(cur, "pop", 3, POP_ADDR);
+
   return head.next;
 }
 
@@ -130,7 +126,14 @@ Token *tokenize(char *p) {
   while (*p) {
     // PRINT("in while")
     // 空白文字をスキップ
-    if (isspace(*p)) {
+    if (*p == ' ' || *p == '\r' || *p == '\f' ||
+        *p == '\t' || *p == '\v') {
+      p++;
+      continue;
+    }
+
+    if(*p == '\n') {
+      cur = new_token(TK_NEWLINE, cur, "\n", 1);
       p++;
       continue;
     }
@@ -146,40 +149,71 @@ Token *tokenize(char *p) {
       continue;
     }
 // cmp set命令を追加する (命令が16個のみでは足りない)
-    if(startswith(p, "load") | startswith(p, "stre") |
+    if((startswith(p, "load") | startswith(p, "stre") |
        startswith(p, "jpmi") | startswith(p, "jmpz") |
-       startswith(p, "jump"))
+       startswith(p, "jump")) && !is_alnum(p[4]))
     {
       cur = new_token(TK_ISTR, cur, p, 4);
       p += 4;
       continue;
     }
 
-    if(startswith(p, "add") | startswith(p, "sub") |
-       startswith(p, "lda"))
+    if((startswith(p, "add") | startswith(p, "sub") |
+       startswith(p, "lda")) && !is_alnum(p[3]))
     {
       cur = new_token(TK_ISTR, cur, p, 3);
       p += 3;
       continue;
     }
 
-    if(startswith(p, "push")) {
-      Token *push = tokenize(PUSH);
-      cur->next = push;
-      cur = getcurrent(push);
+    if(startswith(p, "push") && !is_alnum(p[4])) {
+      p += 5;
+      Token *opd = tokenize(p);
+      cur = new_token(TK_ISTR, cur, "load", 4);
+      for(; opd->kind != TK_NEWLINE; opd = opd->next) {
+        fprintf(stderr, "opd->kind: %d\n", opd->kind);
+        fprintf(stderr, "opd->str: %s\n", opd->str);
+        cur = new_token(opd->kind, cur, opd->str, opd->len);
+        if(opd->kind == TK_HEX)
+          cur->val = opd->val;
+        p += opd->len;
+      }
+      free(opd);
+      cur = new_token(TK_NEWLINE, cur, "\n", 1);
+      p++;
+      Token *call = tokenize(CALL);
+      cur->next = call;
+      cur = getcurrent(call);
+      cur = new_token(TK_IDENT, cur, "push", 4);
+      cur = new_token(TK_NEWLINE, cur, "\n", 1);
+      continue;
+    }
+
+    if(startswith(p, "pop") && !isalnum(p[3])) {
+      Token *call = tokenize(CALL);
+      cur->next = call;
+      cur = getcurrent(call);
+      cur = new_token(TK_IDENT, cur, "pop", 3);
+      cur = new_token(TK_NEWLINE, cur, "\n", 1);
+      cur = new_token(TK_ISTR, cur, "stre", 4);
       p += 4;
+      Token *opd = tokenize(p);
+      for(; opd->kind != TK_NEWLINE; opd = opd->next) {
+        cur = new_token(opd->kind, cur, opd->str, opd->len);
+        if(opd->kind == TK_HEX)
+          cur->val = opd->val;
+        p += opd->len;
+      }
+      free(opd);
       continue;
+      // Token *pop = tokenize(POP);
+      // cur->next = pop;
+      // cur = getcurrent(pop);
+      // p += 3;
+      // continue;
     }
 
-    if(startswith(p, "pop")) {
-      Token *pop = tokenize(POP);
-      cur->next = pop;
-      cur = getcurrent(pop);
-      p += 3;
-      continue;
-    }
-
-    if(startswith(p, "call")) {
+    if(startswith(p, "call") && !is_alnum(p[4])) {
       Token *call = tokenize(CALL);
       cur->next = call;
       cur = getcurrent(call);
@@ -187,7 +221,7 @@ Token *tokenize(char *p) {
       continue;
     }
 
-    if(startswith(p, "ret")) {
+    if(startswith(p, "ret") && !isalnum(p[3])) {
       cur = new_token(TK_ISTR, cur, "jump", 4);
       cur = new_token(TK_RESERVED, cur, "@", 1);
       cur = new_token(TK_HEX, cur, "0x5", 3);
@@ -239,6 +273,8 @@ void gen(Token *tok) {
         printf("0110");
       else if(consume("lda", TK_ISTR, &tok))
         printf("0111");
+      else
+        error("存在しない命令: %s\n", cut_str(tok->str, tok->len));
 
       // アドレッシングモードの指定
       if(consume("@", TK_RESERVED, &tok)) { // 直接アドレス

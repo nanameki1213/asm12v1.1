@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
   //   printf("tok->kind: %d\n", tok->kind);
   //   printf("tok->val: %d\n", tok->val);
   //   printf("tok->len: %d\n", tok->len);
+  //   printf("tok->str: %s\n", cut_str(tok->str, tok->len));
   // }
 
   printf("コード生成スタート\n\n");

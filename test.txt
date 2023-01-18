@@ -1,17 +1,2 @@
 main:
-  jump init
-  jump dayplus
-
-dayplus:
-  load @0xa00
-  add 0x1
-  stre @0xa00
-  ret
-
-init:
-#スタックの初期化
-  load 0x0
-  lda acr
-  load 0xd00
-  stre [amr]
-  ret
+  pop @0x2

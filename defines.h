@@ -10,7 +10,10 @@
 #define PRINT(x) fprintf(stderr, "%s\n", (x));
 #define PUSH "stre @0x1\n load @0x0\n sub 0x1\n lda acr \nload @0x1\n stre [amr]\n"
 #define POP "load @0x0\n lda acr\n load [amr]\n stre @0x1\n load @0x0\n add 0x1\n stre @0x0\n load @0x1\n"
-#define CALL "load pc\n stre @0x5\n jump\n"
+#define CALL "load pc\n stre @0x5\n jump"
+
+#define PUSH_ADDR 0x0
+#define POP_ADDR 0x6
 
 // トークンの種類
 typedef enum {
@@ -18,6 +21,7 @@ typedef enum {
   TK_ISTR,     // 命令記号
   TK_IDENT,    // 識別子
   TK_HEX,      // 16進数トークン
+  TK_NEWLINE,  // 改行文字
   TK_EOF,      // 入力の終わりを表すトークン
 } TokenKind;
 
@@ -58,7 +62,6 @@ void print_bit(int val, int num);
 
 bool is_alnum(char c);
 bool consume(char *op, TokenKind kind, Token **tok);
-bool cmp_ident(char *id, Token *tok);
 void expect(char *op);
 int expect_number();
 bool at_eof();
