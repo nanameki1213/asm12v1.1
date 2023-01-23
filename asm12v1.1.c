@@ -171,8 +171,6 @@ Token *tokenize(char *p) {
       Token *opd = tokenize(p);
       cur = new_token(TK_ISTR, cur, "load", 4);
       for(; opd->kind != TK_NEWLINE; opd = opd->next) {
-        fprintf(stderr, "opd->kind: %d\n", opd->kind);
-        fprintf(stderr, "opd->str: %s\n", opd->str);
         cur = new_token(opd->kind, cur, opd->str, opd->len);
         if(opd->kind == TK_HEX)
           cur->val = opd->val;
@@ -238,6 +236,15 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    if(startswith(p, "0b")) {
+      cur = new_token(TK_BIN, cur, p, 0);
+      p += 2;
+      char *q = p;
+      cur->val = strtol(p, &p, 2);
+      cur->len = p - q;
+      continue;
+    }
+
     if('a'<=*p && *p<='z') {
         char *q = p;
         while(is_alnum(*q)) q++;
@@ -285,7 +292,7 @@ void gen(Token *tok) {
         consume("amr", TK_IDENT, &tok);
         consume("]", TK_RESERVED, &tok);
         continue;
-      } else if(tok->kind == TK_HEX) { // 即値
+      } else if(tok->kind == TK_HEX || tok->kind == TK_BIN) { // 即値
         printf("00");
       } else if(consume("acr", TK_IDENT, &tok)) { // ACR
         printf("110000000000\n");
@@ -294,14 +301,14 @@ void gen(Token *tok) {
         printf("111000000000\n");
         continue;
       } else if(tok->kind == TK_IDENT) { // ラベルによる直接アドレス
-        printf("10");
+        printf("00");
       }
-
+      
       if(consume(",", TK_RESERVED, &tok))
         tok = tok->next;
 
       // オペランドの指定
-      if(tok->kind == TK_HEX)
+      if(tok->kind == TK_HEX || tok->kind == TK_BIN)
         print_bit(tok->val, 10);
       else if(tok->kind == TK_IDENT) {
         // fprintf(stderr, "p: %s\n", cut_str(tok->str, tok->len));
@@ -314,8 +321,11 @@ void gen(Token *tok) {
         printf("0000000000");
       
       putchar('\n');
+      tok = tok->next;
+      if(tok->kind == TK_NEWLINE)
+        size++;
+      continue;
     }
     tok = tok->next;
   }
 }
-
