@@ -8,9 +8,9 @@
 #include <limits.h>
 
 #define PRINT(x) fprintf(stderr, "%s\n", (x));
-#define PUSH "stre @0x1\n load @0x0\n sub 0x1\n lda acr \nload @0x1\n stre [amr]\n"
-#define POP "load @0x0\n lda acr\n load [amr]\n stre @0x1\n load @0x0\n add 0x1\n stre @0x0\n load @0x1\n"
-#define CALL "load pc\n stre @0x5\n jump"
+#define PUSH "stre @0x201\n load @0x200\n sub 0x1\n stre @0x200\n lda acr \nload @0x201\n stre [amr]\n"
+#define POP "load @0x0\n lda acr\n load [amr]\n stre @0x1\n load @0x0\n add 0x1\n stre @0x0\n load @0x1\n stre "
+#define CALL "load pc\n add 0x4\n stre @0x205\n jump"
 
 #define PUSH_ADDR 0x0
 #define POP_ADDR 0x6
@@ -21,6 +21,7 @@ typedef enum {
   TK_ISTR,     // 命令記号
   TK_IDENT,    // 識別子
   TK_HEX,      // 16進数トークン
+  TK_BIN,      // 2進数トークン
   TK_NEWLINE,  // 改行文字
   TK_EOF,      // 入力の終わりを表すトークン
 } TokenKind;
@@ -53,6 +54,8 @@ Label *label;
 int start_addr;
 
 char *user_input;
+
+int size;
 
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);

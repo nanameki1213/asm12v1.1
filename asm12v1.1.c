@@ -90,9 +90,6 @@ Label *labeling() {
     tok = tok->next;
   }
 
-  cur = new_label(cur, "push", 4, PUSH_ADDR);
-  cur = new_label(cur, "pop", 3, POP_ADDR);
-
   return head.next;
 }
 
@@ -149,30 +146,44 @@ Token *tokenize(char *p) {
       continue;
     }
 // cmp set命令を追加する (命令が16個のみでは足りない)
-    if((startswith(p, "load") | startswith(p, "stre") |
-       startswith(p, "jpmi") | startswith(p, "jmpz") |
-       startswith(p, "jump")) && !is_alnum(p[4]))
+    if((startswith(p, "load") || startswith(p, "stre") ||
+        startswith(p, "jpmi") || startswith(p, "jmpz") ||
+        startswith(p, "jump")) && !is_alnum(p[4]))
     {
       cur = new_token(TK_ISTR, cur, p, 4);
       p += 4;
       continue;
     }
 
-    if((startswith(p, "add") | startswith(p, "sub") |
-       startswith(p, "lda")) && !is_alnum(p[3]))
+    if((startswith(p, "add") || startswith(p, "sub") ||
+       startswith(p, "lda")) || startswith(p, "and")
+       && !is_alnum(p[3]))
     {
       cur = new_token(TK_ISTR, cur, p, 3);
       p += 3;
       continue;
     }
 
-    if(startswith(p, "push") && !is_alnum(p[4])) {
-      p += 5;
+    if(startswith(p, "or") && !is_alnum(p[2])) {
+      cur = new_token(TK_ISTR, cur, p, 2);
+      p += 2;
+      continue;
+    }
+
+    if(startswith(p, "div") && !is_alnum(p[3])) {
+      p += 4;
+
+      cur = new_token(TK_ISTR, cur, "stre", 4);
+      cur = new_token(TK_RESERVED, cur, "@", 1);
+      cur = new_token(TK_HEX, cur, "0x201", 5);
+      cur->val = 0x201;
+      cur = new_token(TK_NEWLINE, cur, "\n", 1);
+
       Token *opd = tokenize(p);
       cur = new_token(TK_ISTR, cur, "load", 4);
       for(; opd->kind != TK_NEWLINE; opd = opd->next) {
         cur = new_token(opd->kind, cur, opd->str, opd->len);
-        if(opd->kind == TK_HEX)
+        if(opd->kind == TK_HEX || TK_BIN)
           cur->val = opd->val;
         p += opd->len;
       }
@@ -182,18 +193,34 @@ Token *tokenize(char *p) {
       Token *call = tokenize(CALL);
       cur->next = call;
       cur = getcurrent(call);
-      cur = new_token(TK_IDENT, cur, "push", 4);
+      cur = new_token(TK_IDENT, cur, "div", 4);
       cur = new_token(TK_NEWLINE, cur, "\n", 1);
       continue;
     }
 
-    if(startswith(p, "pop") && !isalnum(p[3])) {
-      Token *call = tokenize(CALL);
-      cur->next = call;
-      cur = getcurrent(call);
-      cur = new_token(TK_IDENT, cur, "pop", 3);
+    if(startswith(p, "push") && !is_alnum(p[4])) {
+      p += 5;
+      Token *opd = tokenize(p);
+      cur = new_token(TK_ISTR, cur, "load", 4);
+      for(; opd->kind != TK_NEWLINE; opd = opd->next) {
+        cur = new_token(opd->kind, cur, opd->str, opd->len);
+        if(opd->kind == TK_HEX || TK_BIN)
+          cur->val = opd->val;
+        p += opd->len;
+      }
+      free(opd);
       cur = new_token(TK_NEWLINE, cur, "\n", 1);
-      cur = new_token(TK_ISTR, cur, "stre", 4);
+      p++;
+      Token *push = tokenize(PUSH);
+      cur->next = push;
+      cur = getcurrent(push);
+      continue;
+    }
+
+    if(startswith(p, "pop") && !is_alnum(p[3])) {
+      Token *pop = tokenize(POP);
+      cur->next = pop;
+      cur = getcurrent(pop);
       p += 4;
       Token *opd = tokenize(p);
       for(; opd->kind != TK_NEWLINE; opd = opd->next) {
@@ -204,11 +231,6 @@ Token *tokenize(char *p) {
       }
       free(opd);
       continue;
-      // Token *pop = tokenize(POP);
-      // cur->next = pop;
-      // cur = getcurrent(pop);
-      // p += 3;
-      // continue;
     }
 
     if(startswith(p, "call") && !is_alnum(p[4])) {
@@ -222,8 +244,8 @@ Token *tokenize(char *p) {
     if(startswith(p, "ret") && !isalnum(p[3])) {
       cur = new_token(TK_ISTR, cur, "jump", 4);
       cur = new_token(TK_RESERVED, cur, "@", 1);
-      cur = new_token(TK_HEX, cur, "0x5", 3);
-      cur->val = 5;
+      cur = new_token(TK_HEX, cur, "0x205", 3);
+      cur->val = 0x205;
       p += 3;
       continue;
     }
@@ -280,6 +302,10 @@ void gen(Token *tok) {
         printf("0110");
       else if(consume("lda", TK_ISTR, &tok))
         printf("0111");
+      else if(consume("and", TK_ISTR, &tok))
+        printf("1000");
+      else if(consume("or", TK_ISTR, &tok))
+        printf("1001");
       else
         error("存在しない命令: %s\n", cut_str(tok->str, tok->len));
 
@@ -291,19 +317,31 @@ void gen(Token *tok) {
         printf("010000000000\n");
         consume("amr", TK_IDENT, &tok);
         consume("]", TK_RESERVED, &tok);
+        if(tok->kind == TK_NEWLINE) {
+          size++;
+          tok = tok->next;
+        }
         continue;
       } else if(tok->kind == TK_HEX || tok->kind == TK_BIN) { // 即値
         printf("00");
       } else if(consume("acr", TK_IDENT, &tok)) { // ACR
         printf("110000000000\n");
+        if(tok->kind == TK_NEWLINE) {
+          size++;
+          tok = tok->next;
+        }
         continue;
       } else if(consume("pc", TK_IDENT, &tok)) { // PC
         printf("111000000000\n");
+        if(tok->kind == TK_NEWLINE) {
+          size++;
+          tok = tok->next;
+        }
         continue;
       } else if(tok->kind == TK_IDENT) { // ラベルによる直接アドレス
         printf("00");
       }
-      
+
       if(consume(",", TK_RESERVED, &tok))
         tok = tok->next;
 
@@ -325,6 +363,13 @@ void gen(Token *tok) {
       if(tok->kind == TK_NEWLINE)
         size++;
       continue;
+    } else if(tok->kind == TK_IDENT) {
+      char *str = cut_str(tok->str, tok->len);
+      tok = tok->next;
+      if(consume(":", TK_RESERVED, &tok)) {
+        printf("\n#%s:\n", str);
+        continue;
+      }
     }
     tok = tok->next;
   }
